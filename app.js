@@ -4,6 +4,8 @@ let currentAudio = null;
 let currentButton = null;
 let audioStatusTimer = null;
 const ASSET_VERSION = '20260602b';
+const IS_APPLE_MOBILE = /iP(ad|hone|od)/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 const coverGradients = [
   'linear-gradient(135deg, #f9d77e 0%, #e8956e 100%)',
@@ -120,6 +122,55 @@ function withAssetVersion(src) {
   return `${src}${sep}v=${ASSET_VERSION}`;
 }
 
+function audioSrc(src) {
+  return withAssetVersion(src);
+}
+
+function audioId(src) {
+  return `audio-${src.replace(/[^a-zA-Z0-9]+/g, '-')}`;
+}
+
+function renderHiddenAudio(src) {
+  if (!src) return '';
+  return `<audio id="${audioId(src)}" class="sr-audio" playsinline preload="metadata">
+    <source src="${audioSrc(src)}" type="audio/mpeg">
+  </audio>`;
+}
+
+function renderMobileAudioButton(src, label, btnClass = 'audio-btn', icon = '▶') {
+  const origLabel = label ? `${icon} ${label}` : icon;
+  return `<button class="${btnClass}"
+    data-orig-label="${origLabel}"
+    onclick="playMobileAudio('${audioId(src)}', this)">
+    <span class="btn-icon">${icon}</span>
+    <span class="btn-text">${label}</span>
+  </button>`;
+}
+
+function renderAudioAction(src, label, btnClass = 'audio-btn') {
+  if (IS_APPLE_MOBILE) {
+    return renderMobileAudioButton(src, label, btnClass);
+  }
+  return `<button class="${btnClass}"
+    data-orig-label="▶ ${label}"
+    onclick="playAudio('${src}', this)">▶ ${label}</button>`;
+}
+
+function renderSentenceAudio(src, hasAudio) {
+  if (!hasAudio) {
+    return '<button class="play-btn" disabled>▶</button>';
+  }
+  if (IS_APPLE_MOBILE) {
+    return `<button class="play-btn mobile-play-btn"
+      data-orig-label="▶"
+      aria-label="播放句子"
+      onclick="playMobileAudio('${audioId(src)}', this)">▶</button>`;
+  }
+  return `<button class="play-btn"
+    data-orig-label="▶"
+    onclick="playAudio('${src}', this)">▶</button>`;
+}
+
 function stopCurrentAudio() {
   if (currentAudio) {
     currentAudio.pause();
@@ -165,6 +216,40 @@ function playAudio(src, btn) {
   });
 }
 
+function playMobileAudio(id, btn) {
+  const audio = document.getElementById(id);
+  if (!audio || btn.disabled) return;
+  if (currentAudio && currentButton === btn) {
+    stopCurrentAudio();
+    return;
+  }
+
+  stopCurrentAudio();
+  currentAudio = audio;
+  currentButton = btn;
+  setButtonPlaying(btn);
+  audio.currentTime = 0;
+
+  audio.onended = () => {
+    resetButtonState(btn);
+    currentAudio = null;
+    currentButton = null;
+  };
+  audio.onerror = () => {
+    resetButtonState(btn);
+    currentAudio = null;
+    currentButton = null;
+    showAudioStatus('音訊載入失敗，請再點一次。');
+  };
+
+  audio.play().catch(() => {
+    resetButtonState(btn);
+    currentAudio = null;
+    currentButton = null;
+    showAudioStatus('iPhone 阻擋了這次播放，請再點一次。');
+  });
+}
+
 function showAudioStatus(message) {
   const el = document.getElementById('audio-status-banner');
   if (!el) return;
@@ -181,6 +266,8 @@ function setButtonPlaying(btn) {
   btn.dataset.origLabel = btn.dataset.origLabel || btn.textContent;
   if (btn.classList.contains('play-btn')) {
     btn.textContent = '■';
+  } else if (btn.querySelector('.btn-icon')) {
+    btn.querySelector('.btn-icon').textContent = '■';
   } else {
     btn.textContent = '■ ' + (btn.dataset.origLabel || '').replace(/^▶ /, '');
   }
@@ -188,7 +275,9 @@ function setButtonPlaying(btn) {
 
 function resetButtonState(btn) {
   btn.classList.remove('playing');
-  if (btn.dataset.origLabel) {
+  if (btn.querySelector('.btn-icon')) {
+    btn.querySelector('.btn-icon').textContent = '▶';
+  } else if (btn.dataset.origLabel) {
     btn.textContent = btn.dataset.origLabel;
   }
 }
@@ -300,11 +389,17 @@ function renderLesson(lesson) {
         ${s.en ? `<div class="tr-line"><span class="tr-lang">EN</span><span>${s.en}</span></div>` : ''}
         ${s.ja ? `<div class="tr-line"><span class="tr-lang">日</span><span>${s.ja}</span></div>` : ''}
       </div>
-      <button class="play-btn"
-        data-orig-label="▶"
-        onclick="playAudio('${s.audio}', this)"
-        ${hasAudio ? '' : 'disabled'}>▶</button>
+      ${renderSentenceAudio(s.audio, hasAudio)}
     </div>`).join('');
+
+  const mobileAudioBank = hasAudio && IS_APPLE_MOBILE
+    ? [
+        lesson.audio.dialogueNormal,
+        lesson.audio.dialogueSlow,
+        lesson.audio.shadowing,
+        ...lesson.dialogue.map(s => s.audio),
+      ].map(renderHiddenAudio).join('')
+    : '';
 
   const patternsHTML = lesson.patterns.map(p => `
     <div class="pattern-item">
@@ -346,7 +441,8 @@ function renderLesson(lesson) {
     : `<button class="done-btn" onclick="onMarkDone('${lesson.id}')">Mark as Done ✓</button>`;
 
   document.getElementById('app').innerHTML = `
-    <div class="app">
+    <div class="app${IS_APPLE_MOBILE ? ' apple-mobile-audio' : ''}">
+      ${mobileAudioBank}
 
       <button class="back-btn" onclick="location.hash='#/lessons'">← 所有課程</button>
 
@@ -369,19 +465,10 @@ function renderLesson(lesson) {
         <div class="section-title">先聽整段</div>
         ${audioNoticeHTML}
         <div id="audio-status-banner" class="audio-status lesson-audio-status" hidden></div>
-        <div class="audio-row">
-          <button class="audio-btn"
-            data-orig-label="▶ Normal"
-            onclick="playAudio('${lesson.audio.dialogueNormal}', this)"
-            ${hasAudio ? '' : 'disabled'}>▶ Normal</button>
-          <button class="audio-btn secondary"
-            data-orig-label="▶ Slow"
-            onclick="playAudio('${lesson.audio.dialogueSlow}', this)"
-            ${hasAudio ? '' : 'disabled'}>▶ Slow</button>
-          <button class="audio-btn secondary"
-            data-orig-label="▶ Shadow"
-            onclick="playAudio('${lesson.audio.shadowing}', this)"
-            ${hasAudio ? '' : 'disabled'}>▶ Shadow</button>
+        <div class="audio-row listen-first-row">
+          ${hasAudio ? renderAudioAction(lesson.audio.dialogueNormal, '正常速度') : '<button class="audio-btn" disabled>▶ 正常速度</button>'}
+          ${hasAudio ? renderAudioAction(lesson.audio.dialogueSlow, '慢速', 'audio-btn secondary') : '<button class="audio-btn secondary" disabled>▶ 慢速</button>'}
+          ${hasAudio ? renderAudioAction(lesson.audio.shadowing, '跟讀版', 'audio-btn secondary') : '<button class="audio-btn secondary" disabled>▶ 跟讀版</button>'}
         </div>
       </div>
 
