@@ -199,8 +199,11 @@ function renderHome() {
     const audioStatus = lesson.audioReady === false
       ? '<p class="audio-status">音檔尚未生成，可先看句子與練習內容。</p>'
       : '';
+    const delay = Math.min(lesson.day * 0.035, 0.7);
     return moduleHeader + `
-      <div class="card lesson-card${done ? ' lesson-done' : ''}" onclick="location.hash='#/lesson/${lesson.id}'">
+      <div class="card lesson-card${done ? ' lesson-done' : ''}"
+           style="animation-delay:${delay}s"
+           onclick="location.hash='#/lesson/${lesson.id}'">
         <div class="lesson-card-top">
           <span class="day-badge">Day ${lesson.day}</span>
           ${done ? '<span class="done-badge">✓ 完成</span>' : ''}
@@ -365,9 +368,26 @@ function renderLesson(lesson) {
 function onMarkDone(id) {
   markDone(id);
   const btn = document.querySelector('.done-btn');
-  if (btn) {
-    btn.textContent = '✓ 已完成';
-    btn.classList.add('completed');
-    btn.disabled = true;
+  if (!btn) return;
+  btn.classList.add('done-pop');
+  btn.textContent = '✓ 已完成';
+  btn.classList.add('completed');
+  btn.disabled = true;
+
+  // brief confetti burst via DOM overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'confetti-overlay';
+  for (let i = 0; i < 18; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'confetti-dot';
+    dot.style.cssText = `
+      left:${20 + Math.random() * 60}%;
+      background:${['#FFCE00','#DD0000','#1f1f1f','#ffffff'][i % 4]};
+      animation-delay:${Math.random() * 0.2}s;
+      animation-duration:${0.6 + Math.random() * 0.4}s;
+    `;
+    overlay.appendChild(dot);
   }
+  document.getElementById('app').appendChild(overlay);
+  setTimeout(() => overlay.remove(), 1200);
 }
