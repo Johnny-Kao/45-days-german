@@ -3,6 +3,7 @@ let audioCache = {};
 let currentAudio = null;
 let currentButton = null;
 let audioStatusTimer = null;
+const ASSET_VERSION = '20260602b';
 
 const coverGradients = [
   'linear-gradient(135deg, #f9d77e 0%, #e8956e 100%)',
@@ -23,7 +24,7 @@ function zh(val) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  fetch('data/lessons.json')
+  fetch(withAssetVersion('data/lessons.json'))
     .then(r => r.json())
     .then(data => {
       lessons = data;
@@ -84,7 +85,7 @@ function warmAudio(src) {
 
   const probe = new Audio();
   probe.preload = 'metadata';
-  probe.src = src;
+  probe.src = withAssetVersion(src);
   probe.load();
   audioCache[src].warmed = true;
 }
@@ -108,9 +109,15 @@ function getAudio(src) {
   const audio = new Audio();
   audio.preload = 'auto';
   audio.playsInline = true;
-  audio.src = src;
+  audio.src = withAssetVersion(src);
   audio.load();
   return audio;
+}
+
+function withAssetVersion(src) {
+  if (!src) return src;
+  const sep = src.includes('?') ? '&' : '?';
+  return `${src}${sep}v=${ASSET_VERSION}`;
 }
 
 function stopCurrentAudio() {
