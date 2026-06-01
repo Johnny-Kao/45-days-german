@@ -153,14 +153,54 @@ function markDone(id) {
 
 // ── Home screen ───────────────────────────────────────────────────────────────
 
+const MODULES = [
+  { days: [1,7],   zh: '基礎社交',          en: 'Basic Social'      },
+  { days: [8,14],  zh: '數字・時間・地點',   en: 'Numbers & Places'  },
+  { days: [15,21], zh: '外出・旅遊・生活',   en: 'Travel & Daily Life'},
+  { days: [22,30], zh: '個人生活與表達',     en: 'Personal Life'     },
+  { days: [31,35], zh: 'K-pop 與音樂',      en: 'Music & K-pop'     },
+  { days: [36,40], zh: '美術・展覽・視覺',   en: 'Art & Exhibitions' },
+  { days: [41,45], zh: '創意工作・文化交流', en: 'Creative & Culture' },
+];
+
+function getModule(day) {
+  return MODULES.find(m => day >= m.days[0] && day <= m.days[1]);
+}
+
 function renderHome() {
+  const doneCount = lessons.filter(l => isDone(l.id)).length;
+  const total = lessons.length;
+  const pct = Math.round((doneCount / total) * 100);
+
+  const progressHTML = `
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>${doneCount} / ${total} 完成</span>
+        <span>${pct}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+
+  let lastModule = null;
   const cards = lessons.map(lesson => {
     const done = isDone(lesson.id);
+    const mod = getModule(lesson.day);
+    let moduleHeader = '';
+    if (mod && mod !== lastModule) {
+      lastModule = mod;
+      moduleHeader = `
+        <div class="module-header">
+          <span class="module-tag">Days ${mod.days[0]}–${mod.days[1]}</span>
+          <span class="module-title">${mod.zh}</span>
+        </div>`;
+    }
     const audioStatus = lesson.audioReady === false
       ? '<p class="audio-status">音檔尚未生成，可先看句子與練習內容。</p>'
       : '';
-    return `
-      <div class="card lesson-card" onclick="location.hash='#/lesson/${lesson.id}'">
+    return moduleHeader + `
+      <div class="card lesson-card${done ? ' lesson-done' : ''}" onclick="location.hash='#/lesson/${lesson.id}'">
         <div class="lesson-card-top">
           <span class="day-badge">Day ${lesson.day}</span>
           ${done ? '<span class="done-badge">✓ 完成</span>' : ''}
@@ -178,9 +218,11 @@ function renderHome() {
   document.getElementById('app').innerHTML = `
     <div class="app">
       <div class="home-header">
-        <h1>🇩🇪 German Course</h1>
+        <div class="home-flag">🇩🇪</div>
+        <h1>45 Days German</h1>
         <p>每天一個任務，用德語說出來</p>
       </div>
+      ${progressHTML}
       ${cards}
     </div>`;
 }

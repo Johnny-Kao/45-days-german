@@ -51,13 +51,19 @@ body {
 
 /* ── Home screen ── */
 .home-header {
-  padding: 24px 0 8px;
-  margin-bottom: 8px;
+  padding: 28px 0 12px;
+  margin-bottom: 4px;
+}
+
+.home-flag {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: 10px;
 }
 
 .home-header h1 {
   margin: 0 0 4px;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.5px;
 }
@@ -66,6 +72,66 @@ body {
   margin: 0;
   font-size: 14px;
   color: var(--muted);
+}
+
+/* ── Progress bar ── */
+.progress-wrap {
+  margin-bottom: 20px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.progress-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #1f1f1f;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* ── Module section headers ── */
+.module-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0 10px;
+}
+
+.module-header:first-of-type {
+  margin-top: 4px;
+}
+
+.module-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+
+.module-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Completed card dim ── */
+.lesson-done {
+  opacity: 0.6;
 }
 
 .lesson-card {
