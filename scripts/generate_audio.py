@@ -31,6 +31,8 @@ RATE_NORMAL = int(os.getenv("MACOS_TTS_RATE_NORMAL", "170"))
 RATE_SLOW = int(os.getenv("MACOS_TTS_RATE_SLOW", "120"))
 RATE_SHADOWING = int(os.getenv("MACOS_TTS_RATE_SHADOWING", "140"))
 PAUSE_MS = int(os.getenv("MACOS_TTS_SHADOWING_PAUSE_MS", "3000"))
+OUTPUT_SAMPLE_RATE = os.getenv("MACOS_TTS_OUTPUT_SAMPLE_RATE", "44100")
+OUTPUT_BITRATE = os.getenv("MACOS_TTS_OUTPUT_BITRATE", "128k")
 
 ROOT = Path(__file__).parent.parent
 LESSONS_JSON = ROOT / "data" / "lessons.json"
@@ -51,7 +53,16 @@ def generate_tts_mac(text, output_mp3: Path, voice=VOICE, rate=RATE_NORMAL, forc
             check=True,
         )
         subprocess.run(
-            ["ffmpeg", "-y", "-i", str(tmp_path), str(output_mp3)],
+            [
+                "ffmpeg", "-y",
+                "-i", str(tmp_path),
+                "-ar", OUTPUT_SAMPLE_RATE,
+                "-ac", "2",
+                "-codec:a", "libmp3lame",
+                "-b:a", OUTPUT_BITRATE,
+                "-id3v2_version", "3",
+                str(output_mp3),
+            ],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -85,7 +96,9 @@ def build_shadowing(sentence_files: list[Path], output_mp3: Path, force=False):
             "-y", "-f", "lavfi",
             "-i", f"anullsrc=r=44100:cl=stereo",
             "-t", str(pause_sec),
+            "-ar", OUTPUT_SAMPLE_RATE,
             "-c:a", "libmp3lame", "-b:a", "48k",
+            "-id3v2_version", "3",
             str(silence_mp3),
         )
 
@@ -100,7 +113,10 @@ def build_shadowing(sentence_files: list[Path], output_mp3: Path, force=False):
         _ffmpeg(
             "-y", "-f", "concat", "-safe", "0",
             "-i", str(concat_list),
-            "-c:a", "libmp3lame", "-b:a", "128k",
+            "-ar", OUTPUT_SAMPLE_RATE,
+            "-ac", "2",
+            "-c:a", "libmp3lame", "-b:a", OUTPUT_BITRATE,
+            "-id3v2_version", "3",
             str(output_mp3),
         )
 

@@ -2,6 +2,7 @@ let lessons = [];
 let audioCache = {};
 let currentAudio = null;
 let currentButton = null;
+let audioStatusTimer = null;
 
 const coverGradients = [
   'linear-gradient(135deg, #f9d77e 0%, #e8956e 100%)',
@@ -55,6 +56,9 @@ function route() {
 // ── Audio manager ─────────────────────────────────────────────────────────────
 
 function preloadAllAudio(allLessons) {
+  // iPhone Safari is unreliable when a page creates a large number of Audio
+  // elements up front. Keep only a lightweight source registry here and warm
+  // the current lesson on demand.
   allLessons.forEach(lesson => {
     if (lesson.audioReady === false) return;
     const srcs = [
@@ -65,20 +69,48 @@ function preloadAllAudio(allLessons) {
     ];
     srcs.forEach(src => {
       if (src && !audioCache[src]) {
-        const a = new Audio();
-        a.preload = 'auto';
-        a.src = src;
-        audioCache[src] = a;
+        audioCache[src] = { warmed: false };
       }
     });
   });
 }
 
+function warmAudio(src) {
+  if (!src) return;
+  if (!audioCache[src]) {
+    audioCache[src] = { warmed: false };
+  }
+  if (audioCache[src].warmed) return;
+
+  const probe = new Audio();
+  probe.preload = 'metadata';
+  probe.src = src;
+  probe.load();
+  audioCache[src].warmed = true;
+}
+
+function preloadLessonAudio(lesson) {
+  if (!lesson || lesson.audioReady === false) return;
+  const srcs = [
+    lesson.audio.dialogueNormal,
+    lesson.audio.dialogueSlow,
+    lesson.audio.shadowing,
+    ...lesson.dialogue.map(s => s.audio),
+  ];
+  srcs.forEach(warmAudio);
+}
+
 function getAudio(src) {
   if (!audioCache[src]) {
-    audioCache[src] = new Audio(src);
+    audioCache[src] = { warmed: false };
   }
-  return audioCache[src];
+
+  const audio = new Audio();
+  audio.preload = 'auto';
+  audio.playsInline = true;
+  audio.src = src;
+  audio.load();
+  return audio;
 }
 
 function stopCurrentAudio() {
@@ -115,13 +147,26 @@ function playAudio(src, btn) {
     resetButtonState(btn);
     currentAudio = null;
     currentButton = null;
+    showAudioStatus('音訊載入失敗，請再點一次；若是 iPhone，請確認不是靜音模式。');
   };
 
   audio.play().catch(() => {
     resetButtonState(btn);
     currentAudio = null;
     currentButton = null;
+    showAudioStatus('iPhone 可能阻擋了這次播放。請再點一次，或確認已關閉靜音模式。');
   });
+}
+
+function showAudioStatus(message) {
+  const el = document.getElementById('audio-status-banner');
+  if (!el) return;
+  el.textContent = message;
+  el.hidden = false;
+  window.clearTimeout(audioStatusTimer);
+  audioStatusTimer = window.setTimeout(() => {
+    el.hidden = true;
+  }, 4000);
 }
 
 function setButtonPlaying(btn) {
@@ -237,6 +282,8 @@ function renderLesson(lesson) {
   const hasAudio = lesson.audioReady !== false;
   const coverStyle = coverGradients[(lesson.day - 1) % coverGradients.length];
 
+  preloadLessonAudio(lesson);
+
   const dialogueHTML = lesson.dialogue.map(s => `
     <div class="sentence-card">
       <div class="speaker-badge">${s.speaker}</div>
@@ -314,6 +361,7 @@ function renderLesson(lesson) {
       <div class="card">
         <div class="section-title">先聽整段</div>
         ${audioNoticeHTML}
+        <div id="audio-status-banner" class="audio-status lesson-audio-status" hidden></div>
         <div class="audio-row">
           <button class="audio-btn"
             data-orig-label="▶ Normal"
