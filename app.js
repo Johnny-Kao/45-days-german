@@ -474,7 +474,7 @@ function renderLesson(lesson) {
     <div class="sentence-card${s.speaker === 'B' ? ' speaker-b' : ''}">
       <div class="speaker-badge">${speakerLabel(s.speaker)}</div>
       <div class="sentence-text">
-        <div class="fr">${s.fr}</div>
+        <div class="fr">${s.de}</div>
         <div class="tr-line"><span class="tr-lang">中文</span><span>${s.zh}</span></div>
         ${s.en ? `<div class="tr-line"><span class="tr-lang">英文</span><span>${s.en}</span></div>` : ''}
         ${s.ja ? `<div class="tr-line"><span class="tr-lang">日文</span><span>${s.ja}</span></div>` : ''}
@@ -498,7 +498,7 @@ function renderLesson(lesson) {
       <div class="pattern-examples">
         ${p.examples.map(e => `
           <div class="pattern-example">
-            <span class="ex-fr">${e.fr}</span>
+            <span class="ex-fr">${e.de}</span>
             <span class="ex-zh"> — ${e.zh}</span>
           </div>`).join('')}
       </div>
@@ -511,21 +511,30 @@ function renderLesson(lesson) {
     </div>`).join('');
 
   const grammarHTML = (() => {
+    const renderNoteItem = n => `
+      <div class="grammar-note-item">
+        <div class="grammar-note-header">
+          <span class="grammar-note-title">${zh(n.title)}</span>
+          ${n.level ? `<span class="grammar-note-level" data-level="${n.level}">${levelLabel(n.level)}</span>` : ''}
+        </div>
+        <div class="grammar-note-explanation">${zh(n.explanation)}</div>
+      </div>`;
+
     const notes = lesson.grammarNotes;
     if (notes && notes.length > 0) {
-      const items = notes.map(n => `
-        <div class="grammar-note-item">
-          <div class="grammar-note-header">
-            <span class="grammar-note-title">${zh(n.title)}</span>
-            ${n.level ? `<span class="grammar-note-level" data-level="${n.level}">${levelLabel(n.level)}</span>` : ''}
-          </div>
-          <div class="grammar-note-explanation">${zh(n.explanation)}</div>
-        </div>`).join('');
       return `<div class="card">
         <div class="section-title">語法小筆記</div>
-        <div class="grammar-notes-list">${items}</div>
+        <div class="grammar-notes-list">${notes.map(renderNoteItem).join('')}</div>
       </div>`;
     }
+    // grammarNote 是單一結構化物件（含 title / explanation）
+    if (lesson.grammarNote && lesson.grammarNote.explanation) {
+      return `<div class="card">
+        <div class="section-title">語法小筆記</div>
+        <div class="grammar-notes-list">${renderNoteItem(lesson.grammarNote)}</div>
+      </div>`;
+    }
+    // grammarNote 是純字串或 i18n 物件（舊格式）
     if (lesson.grammarNote) {
       return `<div class="card">
         <div class="section-title">語法小筆記</div>
