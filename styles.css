@@ -435,6 +435,16 @@ body {
   color: var(--text);
 }
 
+.btn-icon {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+
+.btn-text {
+  margin-left: 4px;
+}
+
 /* ── Sentence cards ── */
 .sentence-card {
   display: flex;
@@ -456,18 +466,26 @@ body {
 
 .speaker-badge {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  min-width: 36px;
+  height: 24px;
+  border-radius: 999px;
   background: var(--bg);
   border: 1px solid var(--border);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 4px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.speaker-b .speaker-badge {
+  background: #f0f4ff;
+  border-color: #c8d4f0;
+  color: #4a6bb5;
 }
 
 .sentence-text {
@@ -505,7 +523,7 @@ body {
   font-size: 10px;
   font-weight: 700;
   color: #b0a898;
-  min-width: 16px;
+  min-width: 26px;
   flex-shrink: 0;
   letter-spacing: 0.3px;
 }
@@ -524,8 +542,14 @@ body {
   align-items: center;
   justify-content: center;
   touch-action: manipulation;
-  transition: background 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
   margin-top: 0;
+  position: relative;
+}
+
+/* Slow mode indicator ring */
+.play-btn[data-speed="slow"] {
+  box-shadow: 0 0 0 2px #7aa7e8;
 }
 
 .play-btn:active {
@@ -618,17 +642,68 @@ body {
 }
 
 /* ── Grammar note ── */
-.grammar-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 6px;
-}
 .grammar-note {
   font-size: 14px;
   color: var(--text);
   line-height: 1.7;
   white-space: pre-line;
+}
+
+.grammar-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.grammar-note-item {
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 12px;
+  border-left: 3px solid var(--accent);
+}
+
+.grammar-note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.grammar-note-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.grammar-note-level {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--muted);
+}
+
+.grammar-note-level[data-level="beginner"] {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.grammar-note-level[data-level="advanced"] {
+  background: #fff8e1;
+  color: #e65100;
+}
+
+.grammar-note-level[data-level="expert"] {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.grammar-note-explanation {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
 }
 
 /* ── Output task ── */
@@ -637,6 +712,33 @@ body {
   line-height: 1.8;
   color: var(--text);
   white-space: pre-line;
+}
+
+/* ── Mark as done / done state ── */
+.done-btn {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  background: var(--accent);
+  color: #fff;
+  transition: opacity 0.15s;
+  min-height: 54px;
+}
+
+.done-btn:active {
+  opacity: 0.75;
+}
+
+.done-btn.completed {
+  background: var(--green-bg);
+  color: var(--green-text);
+  cursor: pointer;
+  font-size: 15px;
 }
 
 /* ── Animation #1: card entrance ── */
@@ -691,28 +793,34 @@ body {
   animation: confettiFall linear forwards;
 }
 
-/* ── Mark as done / done state ── */
-.done-btn {
-  width: 100%;
-  padding: 16px;
+/* ── Scroll to top button ── */
+#scroll-top-btn {
+  position: fixed;
+  right: 18px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   border: none;
-  border-radius: 16px;
-  font-size: 17px;
-  font-weight: 700;
-  cursor: pointer;
-  touch-action: manipulation;
   background: var(--accent);
   color: #fff;
-  transition: opacity 0.15s;
-  min-height: 54px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  transition: opacity 0.2s, transform 0.2s;
+  touch-action: manipulation;
 }
 
-.done-btn:active {
+#scroll-top-btn[hidden] {
+  display: none;
+}
+
+#scroll-top-btn:active {
   opacity: 0.75;
-}
-
-.done-btn.completed {
-  background: var(--green-bg);
-  color: var(--green-text);
-  cursor: default;
+  transform: scale(0.92);
 }

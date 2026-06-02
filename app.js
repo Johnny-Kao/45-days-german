@@ -3,6 +3,7 @@ let audioCache = {};
 let currentAudio = null;
 let currentButton = null;
 let audioStatusTimer = null;
+const linePlaySpeed = {}; // src → 'normal' | 'slow'
 const ASSET_VERSION = '20260602b';
 const IS_APPLE_MOBILE = /iP(ad|hone|od)/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -21,6 +22,19 @@ function zh(val) {
   if (!val) return '';
   if (typeof val === 'string') return val;
   return val.zh || val.en || '';
+}
+
+function speakerLabel(speaker) {
+  if (speaker === 'A') return '你';
+  if (speaker === 'B') return '對方';
+  return speaker;
+}
+
+function levelLabel(level) {
+  if (level === 'beginner') return '初學';
+  if (level === 'advanced') return '進階';
+  if (level === 'expert') return '專家';
+  return level;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -126,6 +140,11 @@ function audioSrc(src) {
   return withAssetVersion(src);
 }
 
+function getAudioElement(src) {
+  if (IS_APPLE_MOBILE) return document.getElementById(audioId(src)) || null;
+  return getAudio(src);
+}
+
 function audioId(src) {
   return `audio-${src.replace(/[^a-zA-Z0-9]+/g, '-')}`;
 }
@@ -153,22 +172,64 @@ function renderAudioAction(src, label, btnClass = 'audio-btn') {
   }
   return `<button class="${btnClass}"
     data-orig-label="▶ ${label}"
-    onclick="playAudio('${src}', this)">▶ ${label}</button>`;
+    onclick="playAudio('${src}', this)">
+    <span class="btn-icon">▶</span><span class="btn-text">${label}</span>
+  </button>`;
 }
 
 function renderSentenceAudio(src, hasAudio) {
   if (!hasAudio) {
     return '<button class="play-btn" disabled>▶</button>';
   }
-  if (IS_APPLE_MOBILE) {
-    return `<button class="play-btn mobile-play-btn"
-      data-orig-label="▶"
-      aria-label="播放句子"
-      onclick="playMobileAudio('${audioId(src)}', this)">▶</button>`;
-  }
   return `<button class="play-btn"
     data-orig-label="▶"
-    onclick="playAudio('${src}', this)">▶</button>`;
+    data-speed="normal"
+    aria-label="播放句子"
+    onclick="playToggleSentenceAudio('${src}', this)">▶</button>`;
+}
+
+function playToggleSentenceAudio(src, btn) {
+  if (!src || btn.disabled) return;
+  if (currentAudio && currentButton === btn) {
+    stopCurrentAudio();
+    return;
+  }
+  stopCurrentAudio();
+
+  const speed = linePlaySpeed[src] || 'normal';
+  const rate = speed === 'slow' ? 0.60 : 1.0;
+
+  const audio = getAudioElement(src);
+  if (!audio) return;
+
+  currentAudio = audio;
+  currentButton = btn;
+  btn.dataset.speed = speed;
+  setButtonPlaying(btn);
+
+  audio.currentTime = 0;
+  audio.playbackRate = rate;
+
+  audio.onended = () => {
+    resetButtonState(btn);
+    currentAudio = null;
+    currentButton = null;
+    linePlaySpeed[src] = speed === 'normal' ? 'slow' : 'normal';
+    btn.dataset.speed = linePlaySpeed[src];
+  };
+  audio.onerror = () => {
+    resetButtonState(btn);
+    currentAudio = null;
+    currentButton = null;
+    showAudioStatus('音訊載入失敗，請再點一次。');
+  };
+
+  audio.play().catch(() => {
+    resetButtonState(btn);
+    currentAudio = null;
+    currentButton = null;
+    showAudioStatus(IS_APPLE_MOBILE ? 'iPhone 阻擋了這次播放，請再點一次。' : '播放失敗，請再點一次。');
+  });
 }
 
 function stopCurrentAudio() {
@@ -205,14 +266,14 @@ function playAudio(src, btn) {
     resetButtonState(btn);
     currentAudio = null;
     currentButton = null;
-    showAudioStatus('音訊載入失敗，請再點一次；若是 iPhone，請確認不是靜音模式。');
+    showAudioStatus('音訊載入失敗，請再點一次。');
   };
 
   audio.play().catch(() => {
     resetButtonState(btn);
     currentAudio = null;
     currentButton = null;
-    showAudioStatus('iPhone 可能阻擋了這次播放。請再點一次，或確認已關閉靜音模式。');
+    showAudioStatus('iPhone 可能阻擋了這次播放。請再點一次。');
   });
 }
 
@@ -268,18 +329,18 @@ function setButtonPlaying(btn) {
     btn.textContent = '■';
   } else if (btn.querySelector('.btn-icon')) {
     btn.querySelector('.btn-icon').textContent = '■';
-  } else {
-    btn.textContent = '■ ' + (btn.dataset.origLabel || '').replace(/^▶ /, '');
   }
+  // audio-btn: 不改文字，靠 CSS .playing 樣式回饋
 }
 
 function resetButtonState(btn) {
   btn.classList.remove('playing');
-  if (btn.querySelector('.btn-icon')) {
+  if (btn.classList.contains('play-btn')) {
+    if (btn.dataset.origLabel) btn.textContent = btn.dataset.origLabel;
+  } else if (btn.querySelector('.btn-icon')) {
     btn.querySelector('.btn-icon').textContent = '▶';
-  } else if (btn.dataset.origLabel) {
-    btn.textContent = btn.dataset.origLabel;
   }
+  // audio-btn: 不需要還原文字
 }
 
 // ── localStorage ──────────────────────────────────────────────────────────────
@@ -292,16 +353,42 @@ function markDone(id) {
   localStorage.setItem('lesson_' + id + '_done', 'true');
 }
 
+function unmarkDone(id) {
+  localStorage.removeItem('lesson_' + id + '_done');
+}
+
+// ── Scroll to top ─────────────────────────────────────────────────────────────
+
+function setupScrollToTop() {
+  window.removeEventListener('scroll', handleScroll);
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  let btn = document.getElementById('scroll-top-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'scroll-top-btn';
+    btn.setAttribute('aria-label', '回到頂部');
+    btn.innerHTML = '↑';
+    btn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.body.appendChild(btn);
+  }
+  btn.hidden = window.scrollY <= 300;
+}
+
+function handleScroll() {
+  const btn = document.getElementById('scroll-top-btn');
+  if (btn) btn.hidden = window.scrollY <= 300;
+}
+
 // ── Home screen ───────────────────────────────────────────────────────────────
 
 const MODULES = [
-  { days: [1,7],   zh: '基礎社交',          en: 'Basic Social'      },
-  { days: [8,14],  zh: '數字・時間・地點',   en: 'Numbers & Places'  },
-  { days: [15,21], zh: '外出・旅遊・生活',   en: 'Travel & Daily Life'},
-  { days: [22,30], zh: '個人生活與表達',     en: 'Personal Life'     },
-  { days: [31,35], zh: 'K-pop 與音樂',      en: 'Music & K-pop'     },
-  { days: [36,40], zh: '美術・展覽・視覺',   en: 'Art & Exhibitions' },
-  { days: [41,45], zh: '創意工作・文化交流', en: 'Creative & Culture' },
+  { days: [1,7],   zh: '基礎社交',          en: 'Basic Social'       },
+  { days: [8,14],  zh: '數字・時間・地點',   en: 'Numbers & Places'   },
+  { days: [15,21], zh: '外出・旅遊・生活',   en: 'Travel & Daily Life' },
+  { days: [22,30], zh: '個人生活與表達',     en: 'Personal Life'      },
+  { days: [31,35], zh: '金融市場基礎',       en: 'Financial Markets'  },
+  { days: [36,40], zh: '客戶管理',           en: 'Client Management'  },
+  { days: [41,45], zh: '進階金融操作',       en: 'Advanced Finance'   },
 ];
 
 function getModule(day) {
@@ -359,6 +446,9 @@ function renderHome() {
       </div>`;
   }).join('');
 
+  const topBtn = document.getElementById('scroll-top-btn');
+  if (topBtn) topBtn.hidden = true;
+
   document.getElementById('app').innerHTML = `
     <div class="app">
       <div class="home-header">
@@ -381,13 +471,13 @@ function renderLesson(lesson) {
   preloadLessonAudio(lesson);
 
   const dialogueHTML = lesson.dialogue.map(s => `
-    <div class="sentence-card">
-      <div class="speaker-badge">${s.speaker}</div>
+    <div class="sentence-card${s.speaker === 'B' ? ' speaker-b' : ''}">
+      <div class="speaker-badge">${speakerLabel(s.speaker)}</div>
       <div class="sentence-text">
-        <div class="fr">${s.de}</div>
-        <div class="tr-line"><span class="tr-lang">中</span><span>${s.zh}</span></div>
-        ${s.en ? `<div class="tr-line"><span class="tr-lang">EN</span><span>${s.en}</span></div>` : ''}
-        ${s.ja ? `<div class="tr-line"><span class="tr-lang">日</span><span>${s.ja}</span></div>` : ''}
+        <div class="fr">${s.fr}</div>
+        <div class="tr-line"><span class="tr-lang">中文</span><span>${s.zh}</span></div>
+        ${s.en ? `<div class="tr-line"><span class="tr-lang">英文</span><span>${s.en}</span></div>` : ''}
+        ${s.ja ? `<div class="tr-line"><span class="tr-lang">日文</span><span>${s.ja}</span></div>` : ''}
       </div>
       ${renderSentenceAudio(s.audio, hasAudio)}
     </div>`).join('');
@@ -408,7 +498,7 @@ function renderLesson(lesson) {
       <div class="pattern-examples">
         ${p.examples.map(e => `
           <div class="pattern-example">
-            <span class="ex-fr">${e.de}</span>
+            <span class="ex-fr">${e.fr}</span>
             <span class="ex-zh"> — ${e.zh}</span>
           </div>`).join('')}
       </div>
@@ -420,25 +510,38 @@ function renderLesson(lesson) {
       <div class="pron-note">${zh(n.note)}</div>
     </div>`).join('');
 
-  let grammarHTML = '';
-  if (lesson.grammarNote) {
-    const gn = lesson.grammarNote;
-    const title = gn.title ? zh(gn.title) : '';
-    const body = gn.explanation ? zh(gn.explanation) : zh(gn);
-    grammarHTML = `<div class="card">
+  const grammarHTML = (() => {
+    const notes = lesson.grammarNotes;
+    if (notes && notes.length > 0) {
+      const items = notes.map(n => `
+        <div class="grammar-note-item">
+          <div class="grammar-note-header">
+            <span class="grammar-note-title">${zh(n.title)}</span>
+            ${n.level ? `<span class="grammar-note-level" data-level="${n.level}">${levelLabel(n.level)}</span>` : ''}
+          </div>
+          <div class="grammar-note-explanation">${zh(n.explanation)}</div>
+        </div>`).join('');
+      return `<div class="card">
         <div class="section-title">語法小筆記</div>
-        ${title ? `<div class="grammar-title">${title}</div>` : ''}
-        <div class="grammar-note">${body}</div>
-       </div>`;
-  }
+        <div class="grammar-notes-list">${items}</div>
+      </div>`;
+    }
+    if (lesson.grammarNote) {
+      return `<div class="card">
+        <div class="section-title">語法小筆記</div>
+        <div class="grammar-note">${zh(lesson.grammarNote)}</div>
+      </div>`;
+    }
+    return '';
+  })();
 
   const audioNoticeHTML = hasAudio
     ? ''
     : `<div class="audio-status lesson-audio-status">這一課的音檔還沒生成；你現在可以先看句型、對話與輸出任務。</div>`;
 
   const doneButtonHTML = done
-    ? `<button class="done-btn completed" disabled>✓ 已完成</button>`
-    : `<button class="done-btn" onclick="onMarkDone('${lesson.id}')">Mark as Done ✓</button>`;
+    ? `<button class="done-btn completed" onclick="onMarkDone('${lesson.id}')">✓ 已完成　點擊取消</button>`
+    : `<button class="done-btn" onclick="onMarkDone('${lesson.id}')">標記完成</button>`;
 
   document.getElementById('app').innerHTML = `
     <div class="app${IS_APPLE_MOBILE ? ' apple-mobile-audio' : ''}">
@@ -449,7 +552,7 @@ function renderLesson(lesson) {
       <!-- Header -->
       <div class="card lesson-header">
         <img class="cover-img"
-          src="https://loremflickr.com/800/400/${lesson.coverKeywords || 'paris,france'}"
+          src="https://loremflickr.com/800/400/${lesson.coverKeywords || 'berlin,germany'}"
           alt="Day ${lesson.day}"
           loading="lazy"
           onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
@@ -466,7 +569,7 @@ function renderLesson(lesson) {
         ${audioNoticeHTML}
         <div id="audio-status-banner" class="audio-status lesson-audio-status" hidden></div>
         <div class="audio-row listen-first-row">
-          ${hasAudio ? renderAudioAction(lesson.audio.dialogueNormal, '正常速度') : '<button class="audio-btn" disabled>▶ 正常速度</button>'}
+          ${hasAudio ? renderAudioAction(lesson.audio.dialogueNormal, '正常速度', 'audio-btn secondary') : '<button class="audio-btn secondary" disabled>▶ 正常速度</button>'}
           ${hasAudio ? renderAudioAction(lesson.audio.dialogueSlow, '慢速', 'audio-btn secondary') : '<button class="audio-btn secondary" disabled>▶ 慢速</button>'}
           ${hasAudio ? renderAudioAction(lesson.audio.shadowing, '跟讀版', 'audio-btn secondary') : '<button class="audio-btn secondary" disabled>▶ 跟讀版</button>'}
         </div>
@@ -505,18 +608,27 @@ function renderLesson(lesson) {
       </div>
 
     </div>`;
+
+  setupScrollToTop();
 }
 
 function onMarkDone(id) {
-  markDone(id);
   const btn = document.querySelector('.done-btn');
-  if (!btn) return;
-  btn.classList.add('done-pop');
-  btn.textContent = '✓ 已完成';
-  btn.classList.add('completed');
-  btn.disabled = true;
+  if (isDone(id)) {
+    unmarkDone(id);
+    if (btn) {
+      btn.textContent = '標記完成';
+      btn.classList.remove('completed', 'done-pop');
+    }
+    return;
+  }
 
-  // brief confetti burst via DOM overlay
+  markDone(id);
+  if (btn) {
+    btn.classList.add('done-pop', 'completed');
+    btn.textContent = '✓ 已完成　點擊取消';
+  }
+
   const overlay = document.createElement('div');
   overlay.className = 'confetti-overlay';
   for (let i = 0; i < 18; i++) {
@@ -524,7 +636,7 @@ function onMarkDone(id) {
     dot.className = 'confetti-dot';
     dot.style.cssText = `
       left:${20 + Math.random() * 60}%;
-      background:${['#FFCE00','#DD0000','#1f1f1f','#ffffff'][i % 4]};
+      background:${['#002395','#ffffff','#ED2939','#f9d77e'][i % 4]};
       animation-delay:${Math.random() * 0.2}s;
       animation-duration:${0.6 + Math.random() * 0.4}s;
     `;
