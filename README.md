@@ -1,6 +1,6 @@
-# 45 Days French
+# 45 Days German
 
-Mobile-first static French speaking course. No backend, no build step.
+Mobile-first static German speaking course. No backend, no build step.
 
 ## Quick start
 
@@ -13,13 +13,13 @@ pip install -r scripts/requirements.txt
 # 2. Copy env config
 cp .env.example .env
 
-# 3. (Optional) check available French voices
+# 3. (Optional) check available German voices
 say -v '?'
-# Edit .env → set MACOS_TTS_VOICE to a fr_FR voice you have, e.g. Thomas, Jacques
+# Edit .env → set MACOS_TTS_VOICE to a de_DE voice you have, e.g. Anna, Markus
 
 # 4. Install high-quality voices (optional)
 # System Settings → Accessibility → Spoken Content → System Voice → Manage Voices
-# Download a French (France) voice
+# Download a German (Germany) voice
 
 # 5. Generate audio
 python scripts/generate_audio.py --all
